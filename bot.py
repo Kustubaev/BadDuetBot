@@ -67,8 +67,24 @@ def load_interactions(path: Path) -> dict[tuple[str, str], Interaction]:
     return interactions
 
 
+def first_choices(interactions: dict[tuple[str, str], Interaction]) -> list[str]:
+    """Первое вещество: берём обе колонки, убираем дубликаты."""
+    return sorted({substance for pair in interactions for substance in pair})
+
+
+def second_choices(first: str, interactions: dict[tuple[str, str], Interaction]) -> list[str]:
+    """Второе вещество: все вещества из обеих колонок, с которыми у выбранного есть реакция."""
+    return sorted({
+        substance
+        for pair in interactions
+        if first in pair
+        for substance in pair
+        if substance != first
+    })
+
+
 INTERACTIONS = load_interactions(DATA_FILE)
-SUBSTANCES = sorted({item for pair in INTERACTIONS for item in pair})
+SUBSTANCES = first_choices(INTERACTIONS)
 SELECTED_FIRST: dict[int, str] = {}
 
 
@@ -81,10 +97,7 @@ def first_keyboard() -> InlineKeyboardMarkup:
 
 
 def second_keyboard(first: str) -> InlineKeyboardMarkup:
-    candidates = [
-        substance for substance in SUBSTANCES
-        if substance != first and pair_key(first, substance) in INTERACTIONS
-    ]
+    candidates = second_choices(first, INTERACTIONS)
     buttons = [
         InlineKeyboardButton(text=substance, callback_data=f"second:{index}")
         for index, substance in enumerate(candidates)
@@ -164,7 +177,7 @@ async def choose_second(callback: CallbackQuery) -> None:
         await callback.answer("Сначала выберите первое вещество.", show_alert=True)
         return
 
-    candidates = [item for item in SUBSTANCES if item != first and pair_key(first, item) in INTERACTIONS]
+    candidates = second_choices(first, INTERACTIONS)
     index = int(callback.data.split(":", maxsplit=1)[1])
     if index not in range(len(candidates)):
         await callback.answer("Кнопка устарела. Начните заново.", show_alert=True)
